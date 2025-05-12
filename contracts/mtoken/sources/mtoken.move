@@ -118,6 +118,18 @@ module mtoken::mtoken {
     ): Coin<MToken> {
         mint_mtokens_internal(manager, admin_cap, coin, ctx)
     }
+    
+    public fun admin_withdraw_vesting<MToken, Vesting, Penalty>(
+        manager: &mut VestingManager<MToken, Vesting, Penalty>,
+        _admin_cap: &AdminCap<MToken, Vesting, Penalty>,
+        amount: u64,
+        ctx: &mut TxContext,
+    ): Coin<Vesting> {
+        manager.assert_version_and_upgrade();
+        let vesting_coin = coin::from_balance(manager.vesting_balance.split(amount), ctx);
+
+        vesting_coin
+    }
 
     entry fun set_params<MToken: drop, Vesting, Penalty>(
         manager: &mut VestingManager<MToken, Vesting, Penalty>,

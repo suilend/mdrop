@@ -54,6 +54,54 @@ module mtoken::mtoken_tests {
 
         (admin_cap, manager, mtoken_coin)
     }
+
+    #[test]
+    fun test_admin_withdraw_vesting() {
+        let owner = @0x10;
+        let mut scenario = test_scenario::begin(owner);
+        let clock = clock::create_for_testing(ctx(&mut scenario));
+
+        let (mut treasury_cap, metadata) = underlying::create_currency(ctx(&mut scenario));
+        let underlying_coin = treasury_cap.mint(8_000, ctx(&mut scenario));
+
+        let (admin_cap, manager, vesting_coin) = mint_mtokens_for_test<VEST, UNDERLYING, SUI>(
+            create_one_time_witness<VEST>(),
+            underlying_coin,
+            &metadata,
+            10,
+            0,
+            100,
+            clock.timestamp_ms() / 1_000,
+            (clock.timestamp_ms() / 1_000) + 100,
+            ctx(&mut scenario),
+        );
+
+        transfer::public_share_object(manager);
+
+        scenario.next_tx(owner);
+        
+        let manager = scenario.take_shared();
+
+        // Admin withdraws from vesting
+        let (withdrawn_coin, penalty_coin, cap) = mtoken::admin_close_vesting<VEST, UNDERLYING, SUI>(
+            manager,
+            admin_cap,
+            ctx(&mut scenario),
+        );
+
+        assert!(vesting_coin.value() == 8_000, 0);
+        assert!(penalty_coin.value() == 0, 0);
+
+        destroy(withdrawn_coin);
+        destroy(vesting_coin);
+        destroy(cap);
+        destroy(penalty_coin);
+        destroy(clock);
+        destroy(metadata);
+        destroy(treasury_cap);
+
+        test_scenario::end(scenario);
+    }
     
     #[test]
     fun test_create_mtoken_coin() {

@@ -66,6 +66,12 @@ module mtoken::mtoken {
         vesting_type: TypeName,
         penalty_type: TypeName,
     }
+    
+    public struct CloseVestingEvent has store, copy, drop {
+        manager_id: ID,
+        underlying_balance: u64,
+        penalty_balance: u64,
+    }
 
     // ===== Public functions =====
 
@@ -117,6 +123,43 @@ module mtoken::mtoken {
         ctx: &mut TxContext,
     ): Coin<MToken> {
         mint_mtokens_internal(manager, admin_cap, coin, ctx)
+    }
+    
+    public fun admin_close_vesting<MToken, Vesting, Penalty>(
+        mut manager: VestingManager<MToken, Vesting, Penalty>,
+        admin_cap: AdminCap<MToken, Vesting, Penalty>,
+        ctx: &mut TxContext,
+    ): (Coin<Vesting>, Coin<Penalty>, TreasuryCap<MToken>) {
+        manager.assert_version_and_upgrade();
+
+        let VestingManager {
+            id,
+            version: _,
+            vesting_balance,
+            penalty_balance,
+            mtoken_treasury_cap,
+            start_penalty_numerator: _,
+            end_penalty_numerator: _,
+            penalty_denominator: _,
+            start_time_s: _,
+            end_time_s: _,
+        } = manager;
+
+        emit(CloseVestingEvent {
+            manager_id: id.to_inner(),
+            underlying_balance: vesting_balance.value(),
+            penalty_balance: penalty_balance.value(),
+        });
+
+        object::delete(id);
+
+        let AdminCap { id, manager: _ } = admin_cap;
+        object::delete(id);
+
+        let underlying = coin::from_balance(vesting_balance, ctx);
+        let penalty = coin::from_balance(penalty_balance, ctx);
+
+        (underlying, penalty, mtoken_treasury_cap)
     }
 
     entry fun set_params<MToken: drop, Vesting, Penalty>(
